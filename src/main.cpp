@@ -144,12 +144,14 @@ void run_jit(Array<Insn> const& ir) {
             }
             case WRITE: {
                 cc.mov(tmp, tapeIndex);
-                InvokeNode *inv;
-                cc.invoke(&inv, Imm(putchar), putcharSig);
-                inv->setArg(0, tmp);
+                for(u32 i = 0; i < insn.operand; i++) {
+                    InvokeNode *inv;
+                    cc.invoke(&inv, Imm(putchar), putcharSig);
+                    inv->setArg(0, tmp);
+                }
                 break;
             }
-#if 1
+#if 0
             case OPEN: {
                 auto lsl = cc.newLabel();
                 auto lel = cc.newLabel();
