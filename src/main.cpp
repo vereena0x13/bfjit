@@ -153,10 +153,10 @@ void run_jit(Array<Insn> const& ir) {
                 labels.push(lsl);
                 labels.push(lel);
                 
-                cc.bind(lsl);
                 cc.mov(tmp, tapeIndex);
                 cc.cmp(tmp, 0);
                 cc.je(lel);
+                cc.bind(lsl);
                 break;
             }
             case CLOSE: {
