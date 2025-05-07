@@ -28,8 +28,5 @@ release: $(EXE)
 clean:
 	rm -f $(EXE)
 
-run: debug
-	./$(EXE)
-
 $(EXE):
 	$(CC) $(CXXFLAGS) -o $(EXE) src/main.cpp $(LDFLAGS)
