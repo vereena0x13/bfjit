@@ -12,6 +12,8 @@ using namespace asmjit;
 using namespace x86;
 
 
+#include <immintrin.h>
+
 
 
 enum OpCode : u8 {
@@ -147,6 +149,7 @@ void run_jit(Array<Insn> const& ir) {
                 inv->setArg(0, tmp);
                 break;
             }
+#if 1
             case OPEN: {
                 auto lsl = cc.newLabel();
                 auto lel = cc.newLabel();
@@ -169,6 +172,28 @@ void run_jit(Array<Insn> const& ir) {
                 cc.bind(lel);
                 break;
             }
+#else
+            case OPEN: {
+                auto lsl = cc.newLabel();
+                auto lel = cc.newLabel();
+                labels.push(lsl);
+                labels.push(lel);
+                
+                cc.bind(lsl);
+                cc.mov(tmp, tapeIndex);
+                cc.cmp(tmp, 0);
+                cc.je(lel);
+                break;
+            }
+            case CLOSE: {
+                auto lel = labels.pop();
+                auto lsl = labels.pop();
+
+                cc.jmp(lsl);
+                cc.bind(lel);
+                break;
+            }
+#endif
             case SET: {
                 cc.mov(tapeIndex, Imm(insn.operand));
                 break;
@@ -198,7 +223,13 @@ void run_jit(Array<Insn> const& ir) {
 
     Static_Array<u8, 1024 * 128> tape;
     memset(tape.data, 0, tape.size);
-    assert(fn(tape.data) == 42);
+    
+    auto start = __rdtsc();
+    s32 result = fn(tape.data);
+    auto end = __rdtsc();
+    printf("%llu\n", end - start);
+
+    assert(result == 42);
 }
 
 
