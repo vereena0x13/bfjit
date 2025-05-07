@@ -2,7 +2,7 @@ EXE=bfjit
 SRC_DIR=src
 
 CC=g++
-STD=c++20
+STD=c++23
 
 WARNINGS=-Wsuggest-override -Wno-switch -Wno-parentheses -Wvolatile -Wextra-semi -Wimplicit-fallthrough -Wsequence-point
 INCLUDES=-Ivendor/vstd -Ivendor/asmjit/src

@@ -89,9 +89,7 @@ Array<Insn> parse_brainfuck(str code) {
 
 typedef s32 (*BfFn)(u8*);
 
-void run_jit(Array<Insn> const& ir) {
-    JitRuntime rt;
-
+BfFn compile(JitRuntime &rt, Array<Insn> const& ir, bool dual_cmp) {
     CodeHolder code;
     code.init(rt.environment(), rt.cpuFeatures());
 
@@ -118,6 +116,7 @@ void run_jit(Array<Insn> const& ir) {
     Mem tapeIndex(tapePtr, dp, 0, 0, 1);
 
     auto putcharSig = FuncSignature::build<s32, s32>();
+    auto getcharSig = FuncSignature::build<s32>();
 
     Array<Label> labels; // TODO: this is lazy...
     for(auto const& insn : ir) {
@@ -139,7 +138,12 @@ void run_jit(Array<Insn> const& ir) {
                 break;
             }
             case READ: {
-                // TODO
+                for(u32 i = 0; i < insn.operand; i++) {
+                    InvokeNode *inv;
+                    cc.invoke(&inv, Imm(getchar), getcharSig);
+                    inv->setRet(0, tmp);
+                    cc.mov(tapeIndex, tmp);
+                }
                 break;
             }
             case WRITE: {
@@ -151,51 +155,40 @@ void run_jit(Array<Insn> const& ir) {
                 }
                 break;
             }
-#if 0
             case OPEN: {
                 auto lsl = cc.newLabel();
                 auto lel = cc.newLabel();
                 labels.push(lsl);
                 labels.push(lel);
                 
-                cc.mov(tmp, tapeIndex);
-                cc.cmp(tmp, 0);
-                cc.je(lel);
-                cc.bind(lsl);
+                if(dual_cmp) {
+                    cc.mov(tmp, tapeIndex);
+                    cc.cmp(tmp, 0);
+                    cc.je(lel);
+                    cc.bind(lsl);
+                } else {
+                    cc.bind(lsl);
+                    cc.mov(tmp, tapeIndex);
+                    cc.cmp(tmp, 0);
+                    cc.je(lel);
+                }
                 break;
             }
             case CLOSE: {
                 auto lel = labels.pop();
                 auto lsl = labels.pop();
 
-                cc.mov(tmp, tapeIndex);
-                cc.cmp(tmp, 0);
-                cc.jne(lsl);
-                cc.bind(lel);
+                if(dual_cmp) {
+                    cc.mov(tmp, tapeIndex);
+                    cc.cmp(tmp, 0);
+                    cc.jne(lsl);
+                    cc.bind(lel);
+                } else {
+                    cc.jmp(lsl);
+                    cc.bind(lel);
+                }
                 break;
             }
-#else
-            case OPEN: {
-                auto lsl = cc.newLabel();
-                auto lel = cc.newLabel();
-                labels.push(lsl);
-                labels.push(lel);
-                
-                cc.bind(lsl);
-                cc.mov(tmp, tapeIndex);
-                cc.cmp(tmp, 0);
-                cc.je(lel);
-                break;
-            }
-            case CLOSE: {
-                auto lel = labels.pop();
-                auto lsl = labels.pop();
-
-                cc.jmp(lsl);
-                cc.bind(lel);
-                break;
-            }
-#endif
             case SET: {
                 cc.mov(tapeIndex, Imm(insn.operand));
                 break;
@@ -218,22 +211,27 @@ void run_jit(Array<Insn> const& ir) {
     BfFn fn;
     auto err = rt.add(&fn, &code);
     if(err) { 
-        printf("JIT failed\n");
-        return;
+        panic("JIT failed\n");
+        return NULL;
     }
 
-
-    Static_Array<u8, 1024 * 128> tape;
-    memset(tape.data, 0, tape.size);
-    
-    auto start = __rdtsc();
-    s32 result = fn(tape.data);
-    auto end = __rdtsc();
-    printf("%llu\n", end - start);
-
-    assert(result == 42);
+    return fn;
 }
 
+u64 do_test(BfFn fn, u32 N) {
+    Static_Array<u8, 1024 * 128> tape;
+
+    u64 total = 0;
+    for(u32 i = 0; i < N; i++) {
+        memset(tape.data, 0, tape.size);
+        u64 start = __rdtsc();
+        assert(fn(tape.data) == 42);
+        u64 end = __rdtsc();
+        total += (start - end);
+    }
+
+    return total;
+}
 
 s32 main(s32 argc, cstr *argv) {
     if(argc < 2) {
@@ -241,9 +239,40 @@ s32 main(s32 argc, cstr *argv) {
         return 1;
     }
 
+    
     auto code = read_entire_file(argv[1]);
     auto ir = parse_brainfuck(code);
-    run_jit(ir);
+    
+
+    JitRuntime rt;
+
+    auto fn = compile(rt, ir, true);
+
+    Static_Array<u8, 1024 * 128> tape;
+    memset(tape.data, 0, tape.size);
+    assert(fn(tape.data) == 42);
+
+
+    // auto f0 = compile(rt, ir, true);
+    // printf("\n");
+    // auto f1 = compile(rt, ir, false);
+
+
+    // Static_Array<u8, 1024 * 128> tape;
+    
+    // memset(tape.data, 0, tape.size);
+    // assert(f0(tape.data) == 42);
+    
+    // memset(tape.data, 0, tape.size);
+    // assert(f1(tape.data) == 42);
+
+
+    // constexpr u32 N = 10;
+
+    // u64 t0 = do_test(f0, N);
+    // u64 t1 = do_test(f1, N);
+    // printf("dual:   %llu\nsingle: %llu\n", t0/N, t1/N);
+
 
     return 0;
 }
