@@ -199,6 +199,9 @@ BfFn compile(JitRuntime &rt, Array<Insn> const& ir, bool dual_cmp) {
             }
         }
     }
+    
+    assert(labels.count == 0);
+    labels.free();
 
     auto ret = cc.newInt32();
     cc.mov(ret, 42);
@@ -268,7 +271,6 @@ s32 main(s32 argc, cstr *argv) {
 
 
     // constexpr u32 N = 10;
-
     // u64 t0 = do_test(f0, N);
     // u64 t1 = do_test(f1, N);
     // printf("dual:   %llu\nsingle: %llu\n", t0/N, t1/N);
